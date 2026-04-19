@@ -1,0 +1,93 @@
+---
+title: "CA8"
+author: "Natalie Chidikwindi & Lihle Sigenu"
+format: pdf
+editor: visual
+---
+
+```{r}
+#| label: libraries
+#| warning: false
+#| include: false
+
+if (!requireNamespace("DataTidyRodoSTA2005S", quietly = TRUE)) {
+if (!requireNamespace("remotes", quietly = TRUE)) {
+utils::install.packages("remotes")
+}
+remotes::install_github("MiguelRodo/DataTidyRodoSTA2005S")
+}
+if (!requireNamespace("tibble", quietly = TRUE)) {
+install.packages("tibble")
+}
+library(tibble) # ensures dataframes print more informatively and concisely than standard met
+data("data_tidy_yield", package = "DataTidyRodoSTA2005S")
+dat <- data_tidy_yield
+```
+
+```{r}
+X <- dat[,-c(1,2)]
+```
+
+# Estimate regression coefficients for:
+
+maize yield \~ soil PH + dist_water
+
+```{r}
+Y1 <- as.matrix(dat[,2]) #Maize YIeld
+X1 <- as.matrix(cbind(1,X[,c(6,8)]))
+beta_vec1 <- solve(t(X1)%*%X1)%*%t(X1)%*%Y1
+```
+
+sunlight \~ soil PH + dist_water
+
+```{r}
+Y2 <- as.matrix(dat[,7]) # Sunlight
+X2 <- X1
+beta_vec2 <- solve(t(X2)%*%X2)%*%t(X2)%*%Y2
+```
+
+maizeYield + Sunlight \~ soil ph + dist_water
+
+```{r}
+Y3 <- as.matrix(cbind(Y1,Y2))
+X3 <- X1
+beta_vec3 <- solve(t(X3)%*%X3)%*%t(X3)%*%Y3
+```
+
+temperature \~ soil PH
+
+```{r}
+#finding the estimates for temperature against soil
+Y4 <- as.matrix(dat[,4])
+X4 <- as.matrix(X1[,c(1,2)])
+beta_vec4 <- solve(t(X4)%*%X4)%*%t(X4)%*%Y4
+
+#Confidence interval
+s <- sum((Y4 - X4 %*% beta_vec4) ^ 2) / (nrow(Y4) - ncol(X4))
+var_resp <- s*solve(t(X4)%*%X4)
+sd_beta_soil <- sqrt(var_resp[2,2])
+
+summary(lm(TempC ~ SoilPH, data = dat ))
+
+#find t assiciated 
+t_beta_soil <- qt(0.975, nrow(Y4) - ncol(X4))
+
+#CI
+CI_soil <- (beta_vec4[2] + c(-1, 1) * t_beta_soil * sd_beta_soil) |>
+signif(2)
+
+```
+
+c.  Perform an F-test for the effect of soil PH and distance to water on maize yield.
+
+```{r}
+C11 <- solve(t(X1)%*%X1)[2:3,2:3]
+res_beta_vec1 <- beta_vec1[-1]
+
+#fstat calulation
+f_stat <- (t(res_beta_vec1) %*%
+solve(C11) %*%
+res_beta_vec1) / length(res_beta_vec1) /
+var_resp
+f_stat |> signif(2)
+```
