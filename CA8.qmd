@@ -5,10 +5,11 @@ format: pdf
 editor: visual
 ---
 
-```{r}
+```{r setup}
 #| label: libraries
 #| warning: false
 #| include: false
+#| echo: false
 
 if (!requireNamespace("DataTidyRodoSTA2005S", quietly = TRUE)) {
 if (!requireNamespace("remotes", quietly = TRUE)) {
@@ -19,47 +20,69 @@ remotes::install_github("MiguelRodo/DataTidyRodoSTA2005S")
 if (!requireNamespace("tibble", quietly = TRUE)) {
 install.packages("tibble")
 }
-library(tibble) # ensures dataframes print more informatively and concisely than standard met
+library(tibble) 
 data("data_tidy_yield", package = "DataTidyRodoSTA2005S")
 dat <- data_tidy_yield
+
+#packages
+library(xtable)
+library(tinytex)
+library(latexpdf)
 ```
 
 ```{r}
+# We removed the first two columns as they referred to the farm_id and maize 
 X <- dat[,-c(1,2)]
 ```
 
-# Estimate regression coefficients for:
+## a) Estimated regression coefficients for:
 
-maize yield \~ soil PH + dist_water
+### i) maize yield \~ soil PH + dist_water
 
-```{r}
-Y1 <- as.matrix(dat[,2]) #Maize YIeld
+```{r, results='asis'}
+Y1 <- as.matrix(dat[,2]) #Maize Yield
 X1 <- as.matrix(cbind(1,X[,c(6,8)]))
-beta_vec1 <- solve(t(X1)%*%X1)%*%t(X1)%*%Y1
+beta_vec1 <- as.matrix(solve(t(X1)%*%X1)%*%t(X1)%*%Y1)
+colnames(beta_vec1) <- c("Coeffecient estimates")
+rownames(beta_vec1) <- c("Intercept", "SoilPH", "Dist_water")
+
+print(xtable(beta_vec1, digits = 2, align = "lc",
+       caption = "Estimates for regression coeffecients"),comment = F)
 ```
 
-sunlight \~ soil PH + dist_water
+### ii) sunlight \~ soil PH + dist_water
 
-```{r}
+```{r, results='asis'}
 Y2 <- as.matrix(dat[,7]) # Sunlight
 X2 <- X1
-beta_vec2 <- solve(t(X2)%*%X2)%*%t(X2)%*%Y2
+beta_vec2 <- as.matrix(solve(t(X2)%*%X2)%*%t(X2)%*%Y2)
+colnames(beta_vec2) <- c("Coeffecient estimates")
+rownames(beta_vec2) <- c("Intercept", "SoilPH", "Dist_water")
+
+print(xtable(beta_vec2, digits = 2, align = "lc",
+       caption = "Estimates for regression coeffecients"), comment = F)
 ```
 
-maizeYield + Sunlight \~ soil ph + dist_water
+### iii) maizeYield + Sunlight \~ soil ph + dist_water
 
-```{r}
+```{r, results='asis'}
 Y3 <- as.matrix(cbind(Y1,Y2))
 X3 <- X1
-beta_vec3 <- solve(t(X3)%*%X3)%*%t(X3)%*%Y3
+beta_vec3 <- as.matrix(solve(t(X3)%*%X3)%*%t(X3)%*%Y3)
+colnames(beta_vec3) <- c("MaizeYield estimates", "Sunlight estimates")
+rownames(beta_vec3) <- c("Intercept", "SoilPH", "Dist_water")
+
+print(xtable(beta_vec3, digits = 2, align = "lcc",
+       caption = "Estimates for regression coeffecients"), comment = F)
 ```
 
-temperature \~ soil PH
+## b) Confidence Interval for temperature \~ soil PH
 
-```{r}
+```{r, results='asis'}
 #finding the estimates for temperature against soil
 Y4 <- as.matrix(dat[,4])
 X4 <- as.matrix(X1[,c(1,2)])
+C11 <- solve(t(X1) %*% X1)[2:3, 2:3]
 beta_vec4 <- solve(t(X4)%*%X4)%*%t(X4)%*%Y4
 
 #Confidence interval
@@ -67,27 +90,135 @@ s <- sum((Y4 - X4 %*% beta_vec4) ^ 2) / (nrow(Y4) - ncol(X4))
 var_resp <- s*solve(t(X4)%*%X4)
 sd_beta_soil <- sqrt(var_resp[2,2])
 
-summary(lm(TempC ~ SoilPH, data = dat ))
 
 #find t assiciated 
 t_beta_soil <- qt(0.975, nrow(Y4) - ncol(X4))
 
 #CI
-CI_soil <- (beta_vec4[2] + c(-1, 1) * t_beta_soil * sd_beta_soil) |>
+CI_soil <- t((beta_vec4[2] + c(-1, 1) * t_beta_soil * sd_beta_soil))
+CI_soil <- as.matrix(CI_soil)|>
 signif(2)
-
+colnames(CI_soil)<- c("2.5%", "97.5%")
+rownames(CI_soil) <- ("SoilPH")
+# print(xtable(CI_soil, digits = 2, 
+# caption = "95% confidence interval for SoilPH against Temperature",
+#align = "lcc"), comment = F, include.rownames = TRUE)}
 ```
 
-c.  Perform an F-test for the effect of soil PH and distance to water on maize yield.
+```{=latex}
+\begin{table}[ht]
+\centering
+\begin{tabular}{lcc}
+  \hline
+ & 2.5\% & 97.5\% \\ 
+  \hline
+SoilPH & 0.79 & 2.30 \\ 
+   \hline
+\end{tabular}
+\caption{95\% confidence interval for SoilPH against Temperature} 
+\end{table}
+```
+
+The confidence interval above indicates that if an arbitrarily large number of samples was drawn from the same population at the data, 95% of the time the \beta estimate for SoilPH would lie within the interval mentioned above.
+
+## c) F-test for the effect of soil PH and distance to water on maize yield.
+
+The null and alternative hypotheses are as follows:
+
+$$H_0: \beta_{SoilPH} = \beta_{distwater} = 0$$ $$H_1: \text{At least 1 } \beta_i \neq 0 $$ where i = {SoilPH, dist_water}
+
+```{r, results='asis'}
+# extracts SoilPH and dist_water
+
+res_beta_vec1 <- as.matrix(beta_vec1[2:3])
+
+s <- sum((Y1 - X1 %*% beta_vec1) ^ 2) / (nrow(Y1) - ncol(X1))
+
+# f-stat
+f_stat <- t(res_beta_vec1) %*% solve(C11) %*% res_beta_vec1 / (2 * s)
+
+#p-value
+p_value <- pf(f_stat, length(res_beta_vec1), 
+              nrow(Y1) - ncol(X1), lower.tail = FALSE)
+
+#table formatting
+results <- cbind(f_stat, p_value)
+colnames(results) <- c("F-stat", "p-value")
+print(xtable(results, digits = 2, 
+             caption = "F-statistic and p-value for hypothesis test"),
+      comment = F)
+```
+
+The F-stat is high, and the p-value is much less than 0. This means it is unlikely that SoilPH and distance to water (dist_water) do not have a have a statistical effect on MaizeYield. We reject the null hypothesis. At least one predictor, SoilPH or dist_water, has a statistically significant effect on MaizeYield on average.
+
+# Question 2
+
+Perform multiple regression, PCR and PLS on the data_tidy_mali dataset. The goal is to predict the quantity of cotton planted, using the other variables.
+
+```{r loading of data}
+#| warning: false
+#| include: false
+#| echo: false
+if (!requireNamespace("remotes", quietly = TRUE)) {
+install.packages("remotes")
+}
+remotes::install_github("MiguelRodo/DataTidy23RodoHonsMult@2024")
+data("data_tidy_mali", package = "DataTidy23RodoHonsMult")
+
+df <- data_tidy_mali
+```
+
+## PCR approach
 
 ```{r}
-C11 <- solve(t(X1)%*%X1)[2:3,2:3]
-res_beta_vec1 <- beta_vec1[-1]
+X <- data_tidy_mali[,-3]
+Y <- data_tidy_mali$cotton
 
-#fstat calulation
-f_stat <- (t(res_beta_vec1) %*%
-solve(C11) %*%
-res_beta_vec1) / length(res_beta_vec1) /
-var_resp
-f_stat |> signif(2)
+# Calculate the principal components of the (non-intercept) predictors
+X <- scale(X)
+
+eigen_x <- eigen(cor(X))
+
+pc_loadings <- eigen_x$vectors
+rownames(pc_loadings) <- paste0("V", 1:8)
+colnames(pc_loadings) <- paste0("PC", 1:8)
+
+eigen_vals <- as.matrix(t(eigen_x$values))
+colnames(eigen_vals) <- paste0("PC", 1:8)
+rownames(eigen_vals) <- c("eigenvalue")
+
+prop_var <- numeric(8)
+for (i in 1:8){
+  prop_var[i] = (sum(eigen_x$values[i])/sum(eigen_x$values))*100
+}
+#plot of each PC
+par(mar = c(4, 4, 2, 1))
+plot(prop_var, type = "b",
+     xlab = "PC",
+     ylab = "variance explained (%)",
+     main  = "Scree Plot showing the proportion of variation explained",
+     cex.main = 1,
+     xaxt = "n")
+axis(side = 1, at = 1:8, labels = 1:8)
+
+
+# sum(eigen_x$values[1:2])/sum(eigen_x$values) * 100 =  57.69518
+# sum(eigen_x$values[1:4])/sum(eigen_x$values) * 100 = 82.16656
+```
+
+Based on the plot above as well as the proportion of variance explained by each additional PC, we have decided to use the first 4 principal components. Although the first 2 may be sufficient for visualizing the data, they only explain 57.70% of the variation in our data. By add $\text{PC}_3$ and $\text{PC}_4$ the amount of variation explained by out principal components will be 82.17% , which will ensure more accurate estimates for our regression coefficients.
+
+The linear regression estimates are then as follows:
+
+```{r, results='asis'}
+#calculating scores
+score_matrix <- cbind(1,X %*%pc_loadings[,1:4])
+beta_vector <- solve(t(score_matrix)%*%score_matrix)%*%t(score_matrix)%*%Y
+beta_vector <- as.matrix(beta_vector)
+colnames(beta_vector) <- c("Coeffecient estimates")
+rownames(beta_vector) <- c("Intercept", paste0("PC", 1:4))
+
+print(xtable(beta_vector, digits = 2,
+       caption = "Estimates for regression coeffecients using PCR"), 
+      comment = F)
 ```
