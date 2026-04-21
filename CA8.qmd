@@ -1,6 +1,6 @@
 ---
 title: "CA8"
-author: "Natalie Chidikwindi & Lihle Sigenu"
+author: "CHDNAT002 Natalie Chidikwindi & SGNLIH001 Lihle Sigenu"
 format: pdf
 editor: visual
 ---
